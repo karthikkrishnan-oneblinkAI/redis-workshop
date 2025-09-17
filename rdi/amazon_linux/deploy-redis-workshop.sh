@@ -13,7 +13,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Logging function
+# Logging functions
 log() {
     echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
 }
@@ -24,6 +24,10 @@ error() {
 
 warn() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
 }
 
 # Configuration variables
