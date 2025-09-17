@@ -30,6 +30,9 @@ info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
 
+# Configuration
+RDI_VERSION=${RDI_VERSION:-"1.14.0"}
+
 # Function to check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
@@ -177,6 +180,119 @@ setup_rdi_compatibility() {
     fi
 }
 
+# Function to pre-install RDI CLI
+install_rdi_cli() {
+    log "Pre-installing RDI CLI for workshop users..."
+    
+    # Create temporary directory for RDI installation
+    local temp_dir="/tmp/rdi-install-$$"
+    mkdir -p "$temp_dir"
+    cd "$temp_dir"
+    
+    # Download RDI if available
+    log "Downloading RDI version $RDI_VERSION..."
+    if curl -f -O "https://redis-enterprise-software-downloads.s3.amazonaws.com/redis-di/rdi-installation-$RDI_VERSION.tar.gz"; then
+        log "RDI downloaded successfully"
+    else
+        warn "Failed to download RDI version $RDI_VERSION, trying alternative download..."
+        # Try alternative download location or method if needed
+        if ! curl -f -O "https://download.redis.io/redis-di/rdi-installation-$RDI_VERSION.tar.gz"; then
+            warn "RDI CLI download failed - workshop will continue without RDI CLI"
+            cd /tmp && rm -rf "$temp_dir"
+            return 1
+        fi
+    fi
+    
+    # Extract RDI
+    log "Extracting RDI installation package..."
+    tar -xzf "rdi-installation-$RDI_VERSION.tar.gz"
+    
+    # Find the installation directory
+    local extracted_dir
+    if [ -d "rdi_install/$RDI_VERSION" ]; then
+        extracted_dir="rdi_install/$RDI_VERSION"
+    else
+        extracted_dir=$(find . -name "install.sh" -type f | head -1 | xargs dirname)
+        if [ -z "$extracted_dir" ]; then
+            warn "Could not find install.sh in RDI package - skipping RDI CLI installation"
+            cd /tmp && rm -rf "$temp_dir"
+            return 1
+        fi
+    fi
+    
+    log "Found RDI installation directory: $extracted_dir"
+    cd "$extracted_dir"
+    
+    # Verify install.sh exists
+    if [ ! -f "install.sh" ]; then
+        warn "install.sh not found in RDI package - skipping RDI CLI installation"
+        cd /tmp && rm -rf "$temp_dir"
+        return 1
+    fi
+    
+    # Create minimal config for CLI-only installation
+    cat > admin-silent.toml << EOF
+title = "RDI Admin CLI Installation"
+
+# Minimal configuration for CLI-only installation
+scaffold = false
+deploy = false
+db_index = 5
+deploy_directory = "/opt/rdi/config"
+
+# Dummy database configuration (not used for CLI-only install)
+[rdi.database]
+host = "localhost"
+port = 12001
+use_existing_rdi = true
+password = "dummy"
+ssl = false
+
+[sources.default]
+username = "postgres"
+password = "postgres"
+ssl = false
+
+[targets.default]
+username = ""
+password = ""
+ssl = false
+EOF
+
+    # Install RDI with minimal configuration
+    log "Installing RDI CLI..."
+    if bash install.sh -f admin-silent.toml 2>/dev/null; then
+        log "RDI installation completed"
+        
+        # Create symlinks for RDI CLI commands
+        if [ -f "/opt/rdi/bin/redis-di" ]; then
+            ln -sf /opt/rdi/bin/redis-di /usr/local/bin/redis-di
+            log "RDI CLI symlink created: /usr/local/bin/redis-di"
+        elif [ -f "/opt/rdi/bin/rdi-cli" ]; then
+            ln -sf /opt/rdi/bin/rdi-cli /usr/local/bin/redis-di
+            log "RDI CLI symlink created: /usr/local/bin/redis-di (from rdi-cli)"
+        else
+            warn "RDI CLI binary not found in expected location"
+        fi
+        
+        # Set proper permissions for RDI directory
+        if [ -d "/opt/rdi" ]; then
+            chown -R root:root /opt/rdi
+            chmod -R 755 /opt/rdi
+            # Allow workshop users to access RDI config
+            chmod 755 /opt/rdi/config 2>/dev/null || true
+        fi
+        
+    else
+        warn "RDI installation failed - workshop will continue without RDI CLI"
+        warn "Users can install RDI manually during the workshop if needed"
+    fi
+    
+    # Cleanup
+    cd /tmp && rm -rf "$temp_dir"
+    log "RDI CLI installation completed"
+}
+
 # Function to install Python dependencies for load generator
 install_python_deps() {
     log "Installing Python dependencies..."
@@ -230,12 +346,14 @@ This system has been configured for Redis Enterprise + RDI workshop deployment.
 - Docker and Docker Compose
 - Git, jq, wget, curl
 - Python 3 with psycopg2
+- RDI CLI (redis-di command)
 - Pre-downloaded Docker images
 
 ### System Modifications
 - Users added to docker group for container access
 - RDI compatibility file created (`/etc/redhat-release`)
 - Docker daemon configured for optimal performance
+- RDI CLI installed globally at `/usr/local/bin/redis-di`
 
 ### Workshop Deployment
 Users can now run the workshop deployment with:
@@ -245,9 +363,18 @@ Users can now run the workshop deployment with:
 
 No sudo privileges required for workshop participants.
 
+### RDI CLI Usage
+The RDI CLI is available globally:
+```bash
+redis-di --help
+redis-di add-context --rdi-host <host> --rdi-port <port> <context-name>
+redis-di set-context <context-name>
+```
+
 ### Troubleshooting
 - If Docker permission errors occur, users may need to log out and back in
 - Alternatively, run: `newgrp docker`
+- RDI CLI should be available at `/usr/local/bin/redis-di`
 
 ### Support
 For issues with the workshop environment, contact your system administrator.
@@ -287,6 +414,13 @@ verify_installation() {
         errors=$((errors + 1))
     fi
     
+    # Check RDI CLI
+    if command_exists redis-di; then
+        log "✅ RDI CLI is available: $(redis-di --version 2>/dev/null || echo 'installed')"
+    else
+        warn "⚠️  RDI CLI not available (will be installed during workshop)"
+    fi
+    
     # Check Python dependencies
     if python3 -c "import psycopg2" 2>/dev/null; then
         log "✅ Python PostgreSQL driver available"
@@ -321,6 +455,7 @@ display_completion() {
     echo "✅ Docker and Docker Compose configured"
     echo "✅ User permissions configured for workshop"
     echo "✅ RDI compatibility enabled for Amazon Linux"
+    echo "✅ RDI CLI pre-installed and available globally"
     echo "✅ Python dependencies installed"
     echo "✅ Docker images pre-downloaded"
     echo "✅ Documentation created"
@@ -329,11 +464,13 @@ display_completion() {
     echo "1. Workshop participants can now run: ./start.sh"
     echo "2. No sudo privileges required for workshop deployment"
     echo "3. All services will run in Docker containers"
+    echo "4. RDI CLI is available as 'redis-di' command"
     echo
     info "📝 Notes:"
     echo "• Users may need to log out/in for Docker group membership"
     echo "• Workshop files will be created in user home directories"
     echo "• System is ready for VS Code terminal usage"
+    echo "• RDI CLI is pre-installed for immediate use"
     echo
     log "✅ System is ready for Redis Enterprise + RDI workshops!"
 }
@@ -348,6 +485,7 @@ main() {
     echo "OS: $(cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2 | tr -d '\"')"
     echo "User: $(whoami)"
     echo "Date: $(date)"
+    echo "RDI Version: $RDI_VERSION"
     echo
     
     # Run setup steps
@@ -355,6 +493,7 @@ main() {
     configure_docker
     setup_user_permissions
     setup_rdi_compatibility
+    install_rdi_cli  # NEW: Pre-install RDI CLI
     install_python_deps
     predownload_images
     create_documentation
