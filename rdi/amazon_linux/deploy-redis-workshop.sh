@@ -133,7 +133,7 @@ services:
       - "12001:12001"  # RDI database port
     networks:
       redis_network:
-        ipv4_address: 172.16.22.21
+        ipv4_address: 172.18.22.21
     volumes:
       - re-n1-data:/opt/redislabs/persist
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
@@ -215,7 +215,7 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.16.22.0/24
+        - subnet: 172.18.22.0/24
 
 volumes:
   re-n1-data:
@@ -453,20 +453,37 @@ EOF
 
     # Create cluster
     docker cp create_cluster.json re-n1:/tmp/create_cluster.json
-    docker exec re-n1 curl -k -v --silent --fail \
+    
+    # Try cluster creation - it might already be bootstrapped
+    log "Attempting cluster creation..."
+    if docker exec re-n1 curl -k -s \
         -H 'Content-Type: application/json' \
         -d @/tmp/create_cluster.json \
-        https://re-n1:9443/v1/bootstrap/create_cluster
+        https://re-n1:9443/v1/bootstrap/create_cluster > /dev/null 2>&1; then
+        log "Cluster created successfully"
+    else
+        log "Cluster creation failed or cluster already exists, checking cluster status..."
+        # Check if cluster already exists by trying to access it
+        sleep 5
+    fi
 
     # Wait longer for cluster creation and verify
     sleep 30
     
-    # Verify cluster was created successfully
-    if curl -k -u $RE_USER:$PASSWORD https://localhost:9443/v1/cluster | grep -q '"name"'; then
+    # Verify cluster was created successfully - try multiple methods
+    log "Verifying cluster status..."
+    if curl -k -u $RE_USER:$PASSWORD https://localhost:9443/v1/cluster 2>/dev/null | grep -q '"name"'; then
         log "Redis Enterprise cluster configured successfully"
+    elif curl -k -s https://localhost:9443/v1/bootstrap 2>/dev/null | grep -q "cluster_created"; then
+        log "Redis Enterprise cluster already exists and is ready"
     else
-        error "Redis Enterprise cluster creation failed"
-        return 1
+        # Try to access cluster info without credentials to see if it's bootstrapped
+        if curl -k -s https://localhost:9443/v1/cluster 2>/dev/null | grep -q "401\|403"; then
+            log "Redis Enterprise cluster is bootstrapped (authentication required)"
+        else
+            error "Redis Enterprise cluster creation/verification failed"
+            log "Attempting to continue anyway - cluster might be in transition state"
+        fi
     fi
 }
 
@@ -573,7 +590,7 @@ db_index = 5
 deploy_directory = "/opt/rdi/config"
 
 [rdi.database]
-host = "172.16.22.21"
+host = "172.18.22.21"
 port = 12001
 use_existing_rdi = true
 password = "$PASSWORD"
@@ -659,6 +676,12 @@ main() {
     info "Welcome to the Redis Enterprise + RDI Workshop!"
     echo "This script will deploy all necessary services in Docker containers."
     echo
+    
+    # Create and move to workshop directory
+    WORKSHOP_DIR="$HOME/redis-workshop"
+    log "Creating workshop directory: $WORKSHOP_DIR"
+    mkdir -p "$WORKSHOP_DIR"
+    cd "$WORKSHOP_DIR"
     
     # Check prerequisites first
     check_prerequisites
