@@ -1,0 +1,12 @@
+source:
+    table: Track
+transform:
+  - uses: add_field
+    with:
+      field: NameUpper
+      expression: upper("Name")
+      language: sql
+  - uses: filter
+    with:
+      expression: GenreId=2
+      language: sql

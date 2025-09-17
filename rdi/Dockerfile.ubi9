@@ -1,0 +1,36 @@
+FROM redhat/ubi9-init
+
+RUN yum -y install iputils bind-utils hostname
+
+USER root:root
+
+RUN dnf install -y openssh-server sudo python3 python3-pip && \
+    dnf clean all
+
+RUN adduser labuser && \
+    usermod -aG wheel labuser
+
+RUN echo "labuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+RUN ssh-keygen -A
+
+USER labuser:labuser
+
+COPY from-repo/scripts /scripts
+
+USER root:root
+
+RUN python3 -m pip install -r /scripts/generate-load-requirements.txt
+
+# RDI
+RUN mkdir /rdi
+WORKDIR  /rdi
+ENV RDI_VERSION 1.2.7
+RUN curl https://redis-enterprise-software-downloads.s3.amazonaws.com/redis-di/rdi-installation-$RDI_VERSION.tar.gz -O
+RUN tar -xvf rdi-installation-$RDI_VERSION.tar.gz
+WORKDIR /rdi/rdi_install/$RDI_VERSION
+
+
+# those must exist for systemd daemon pidfile etc.
+# /var/lib/rancher needs to be ext4 and not overlay filesystem for K3S containerd to start properly when nested in docker
+VOLUME ["/tmp", "/run", "/var/lib/rancher"]

@@ -1,0 +1,12 @@
+{
+  "action": "create_cluster",
+  "cluster": {
+     "nodes": ["$IP"],
+     "name": "$CLUSTER"
+  },
+  "credentials": {
+       "username": "$RE_USER",
+       "password": "$PASSWORD"
+  }
+}
+

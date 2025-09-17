@@ -1,0 +1,6 @@
+connections:
+  # Redis target DB connection details
+  target:
+    type: redis
+    host: redis
+    port: 12000

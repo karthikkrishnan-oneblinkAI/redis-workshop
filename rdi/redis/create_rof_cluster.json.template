@@ -1,0 +1,17 @@
+{
+  "action": "create_cluster",
+  "cluster": {
+    "name": "$CLUSTER"
+  },
+  "node": {
+    "bigstore_driver": "rocksdb",
+    "paths": {
+      "bigstore_path": "/var/opt/redislabs/flash"
+    }
+  },  
+  "credentials": {
+       "username": "$RE_USER",
+       "password": "$PASSWORD"
+  }
+}
+

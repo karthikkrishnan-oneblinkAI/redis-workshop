@@ -1,0 +1,19 @@
+{
+  "name": "rdi-db",
+  "type": "redis",
+  "authentication_redis_pass": "redislabs",
+  "eviction_policy": "noeviction",
+  "aof_policy":"appendfsync-every-sec",
+  "data_persistence":"aof",
+  "shard_key_regex": [
+    {
+      "regex": ".*\\{(?<tag>.*)\\}.*"
+    },
+    {
+      "regex": "(?<tag>.*)"
+    }
+  ],
+  "replication": false,
+  "memory_size": 262144000,
+  "port": 12001
+}

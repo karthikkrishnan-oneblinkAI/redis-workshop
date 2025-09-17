@@ -1,0 +1,228 @@
+version: '2'
+services:
+  terminal:
+    image: terminal
+    hostname: terminal
+    container_name: terminal
+    ports:
+      - '7681:7681'
+    build:
+      context: .
+      dockerfile: terminal.dockerfile
+    networks:
+      default:
+        ipv4_address: 172.16.22.11
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    environment:
+      - GF_INSTALL_PLUGINS=redis-app,redis-datasource,grafana-clock-panel,grafana-simple-json-datasource
+      - GF_SECURITY_ADMIN_PASSWORD=${PASSWORD}
+    volumes:
+      - './grafana:/var/lib/grafana'
+      - './grafana_config/grafana.ini:/etc/grafana/grafana.ini'  
+    ports:
+      - '3000:3000'        
+    networks:
+      default:
+        ipv4_address: 172.16.22.10
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - './prometheus/:/etc/prometheus/'
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    dns:
+      - 172.16.22.20
+    ports:
+      - '9090:9090'        
+    networks:
+      default:
+        ipv4_address: 172.16.22.12
+
+  redis-insight-2:
+    image: redis/redisinsight:latest
+    container_name: redis-insight-2
+    depends_on:
+      - re-n1
+    ports:
+      - '5540:5540'
+    dns:
+      - 172.16.22.20
+    volumes:
+      - './redisinsight.db:/root/.redisinsight-v2-stage/redisinsight.db'
+    networks:
+      default:
+        ipv4_address: 172.16.22.13
+
+  nginx:
+    image: 'nginx:latest'
+    container_name: nginx
+    volumes:
+      - './nginx.conf:/etc/nginx/nginx.conf'
+      - './:/var/log/nginx/'
+      - './doc/assets:/www/data/doc/assets'
+    depends_on:
+      - terminal
+      - re-n1
+      - bind
+      - redis-insight-2
+      - grafana
+      - prometheus
+      - app
+    ports:
+      - '9080:9080'
+      - '443:443'
+    dns:
+      - 172.16.22.20
+    networks:
+      default:
+        ipv4_address: 172.16.22.30
+
+  app:
+    privileged: true
+    build:
+      context: ./from-repo
+      dockerfile: Dockerfile.app
+    container_name: app
+    ports:
+      - '8081:8081'    
+    extra_hosts:
+      - 'redis:172.16.22.21'
+    environment:
+      - REDIS_TARGET_DB_HOST=re-n1
+    volumes:
+      - './from-repo/app:/app'
+    networks:
+      default:
+        ipv4_address: 172.16.22.14
+
+  dozzle:
+    container_name: dozzle
+    image: 'amir20/dozzle:latest'
+    ports:
+      - '8080:8080'
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock'
+    networks:
+      default:
+        ipv4_address: 172.16.22.15
+
+  bind:
+    image: sameersbn/bind
+    networks:
+      default:
+        ipv4_address: 172.16.22.20
+    volumes:
+      - './bind/data:/data'
+
+  re-n1:
+    user: 'redislabs:redislabs'
+    container_name: re-n1
+    hostname: re-n1
+    cap_add:
+      - sys_resource
+      - net_admin
+    privileged: true
+    dns:
+      - 172.16.22.20
+    ports:
+      - '14092:14092'
+      - '12000:12000'
+      - '12001:12001'
+      - '8443:8443'
+    networks:
+      default:
+        ipv4_address: 172.16.22.21
+    build:
+      context: .
+      dockerfile: redislabs-ubuntu.dockerfile
+
+  postgresql:
+    image: 'postgres:15.3-bullseye'
+    container_name: postgresql
+    ports:
+      - '5432:5432'
+    networks:
+      default:
+        ipv4_address: 172.16.22.7
+    dns:
+      - 172.16.22.20
+    environment:
+      - POSTGRES_DB=chinook
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - ./create_track_table.sql:/docker-entrypoint-initdb.d/create_track_table.sql
+    command:
+      - postgres
+      - '-c'
+      - wal_level=logical
+    restart: unless-stopped
+
+  postgres-exporter:
+    container_name: postgres-exporter
+    image: prometheuscommunity/postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: 'postgresql://postgres:postgres@postgresql:5432/?sslmode=disable'
+    links:
+      - postgresql
+      - prometheus
+    networks:
+      default:
+        ipv4_address: 172.16.22.23
+    dns:
+      - 172.16.22.20
+
+
+  sqlpad:
+    image: 'sqlpad/sqlpad:6'
+    hostname: sqlpad
+    container_name: sqlpad
+    ports:
+      - '3001:3000'
+    environment:
+      SQLPAD_ADMIN: '${RE_USER}'
+      SQLPAD_ADMIN_PASSWORD: '${PASSWORD}'
+      SQLPAD_APP_LOG_LEVEL: info
+      SQLPAD_WEB_LOG_LEVEL: warn
+      SQLPAD_CONNECTIONS__pgdemo__name: Ingest-Postgres-DB
+      SQLPAD_CONNECTIONS__pgdemo__driver: postgres
+      SQLPAD_CONNECTIONS__pgdemo__host: postgresql
+      SQLPAD_CONNECTIONS__pgdemo__database: chinook
+      SQLPAD_CONNECTIONS__pgdemo__username: postgres
+      SQLPAD_CONNECTIONS__pgdemo__password: postgres
+    networks:
+      default:
+        ipv4_address: 172.16.22.17
+
+  loadgen:
+    image: loadgen
+    hostname: loadgen
+    container_name: loadgen
+    ports:
+      - '9121:9121'
+    build:
+      context: .
+      dockerfile: rdi.dockerfile
+    volumes:
+      - './from-repo/scripts/:/scripts/'
+      - './from-repo/ingest_config/:/home/labuser/ingest_config/'  
+    networks:
+      default:
+        ipv4_address: 172.16.22.18
+
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'true'
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.16.22.0/24
+          gateway: 172.16.22.1
+

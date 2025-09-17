@@ -1,0 +1,16 @@
+source:
+  keyspace:
+    pattern: customers:*
+    exclude-commands: ["json.del"]
+output:
+  - uses: relational.write
+    with:
+      connection: mysql
+      schema: inventory
+      table: customers
+      keys:
+        - id
+      mapping:
+        - first_name
+        - last_name
+        - email

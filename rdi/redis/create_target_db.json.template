@@ -1,0 +1,31 @@
+{
+  "name": "target-db",
+  "type": "redis",
+  "sharding": true,
+  "shards_count": 2,
+  "shard_key_regex": [
+    {
+      "regex": ".*\\{(?<tag>.*)\\}.*"
+    },
+    {
+      "regex": "(?<tag>.*)"
+    }
+  ],
+  "eviction_policy": "noeviction",
+  "replication": false,
+  "memory_size": 1000000000,
+  "data_persistence": "aof",
+  "module_list": [
+    {
+      "module_name": "ReJSON",
+      "module_args": "",
+      "semantic_version": "2.8.11"
+    },
+    {
+      "module_name": "search",
+      "module_args": "",
+      "semantic_version": "2.10.20"
+    }
+  ],
+  "port": 12000
+}

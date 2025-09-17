@@ -1,0 +1,10 @@
+{
+    "name": "demoapp",
+    "version": "1.0.0",
+    "main": "DemoServer.js",
+    "dependencies": {
+        "express": "^4.18.1",
+        "online": "^0.0.1",
+        "redis": "^4.1.0"
+    }
+}

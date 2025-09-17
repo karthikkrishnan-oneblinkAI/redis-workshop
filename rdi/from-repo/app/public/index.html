@@ -1,0 +1,205 @@
+<html>
+  <head>
+    <title>Redis Data Integration Demo</title>
+    <script src="jquery-3.6.0.min.js"></script>
+    <script src="https://unpkg.com/mustache@latest"></script>
+    <script src="https://d3js.org/d3.v3.min.js"></script>
+    <script src="barchart.js"></script>
+    <link
+      href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+    <link rel="preconnect" href="https://fonts.gstatic.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      rect.a {
+        fill: green;
+      }
+      rect.b {
+        fill: orange;
+      }
+      rect.c {
+        fill: red;
+      }
+    </style>
+  </head>
+  <body>
+    <h2 style="font-family: 'Roboto', sans-serif" ;>
+      Redis Data Integration with RediSearch Demo
+    </h2>
+
+    <div class="mdc-select mdc-select--filled demo-width-class">
+      <div
+        class="mdc-select__anchor"
+        role="button"
+        aria-haspopup="listbox"
+        aria-expanded="false"
+        aria-labelledby="demo-label demo-selected-text"
+      >
+        <span class="mdc-select__ripple"></span>
+        <span id="demo-label" class="mdc-floating-label">Pick a Genre</span>
+        <span class="mdc-select__selected-text-container">
+          <span
+            id="demo-selected-text"
+            class="mdc-select__selected-text"
+          ></span>
+        </span>
+        <span class="mdc-select__dropdown-icon">
+          <svg
+            class="mdc-select__dropdown-icon-graphic"
+            viewBox="7 10 10 5"
+            focusable="false"
+          >
+            <polygon
+              class="mdc-select__dropdown-icon-inactive"
+              stroke="none"
+              fill-rule="evenodd"
+              points="7 10 12 15 17 10"
+            ></polygon>
+            <polygon
+              class="mdc-select__dropdown-icon-active"
+              stroke="none"
+              fill-rule="evenodd"
+              points="7 15 12 10 17 15"
+            ></polygon>
+          </svg>
+        </span>
+        <span class="mdc-line-ripple"></span>
+      </div>
+
+      <div
+        class="mdc-select__menu mdc-menu mdc-menu-surface mdc-menu-surface--fullwidth"
+      >
+        <ul
+          class="mdc-list mdc-list-item--selected"
+          role="listbox"
+          aria-label="Food picker listbox"
+        >
+          <li
+            class="mdc-list-item mdc-list-item--selected"
+            aria-selected="true"
+            data-value=""
+            role="option"
+          >
+            <span class="mdc-list-item__ripple"></span>
+          </li>
+          <li class="mdc-list-item" role="option">
+            <span class="mdc-list-item__ripple"></span>
+            <span class="mdc-list-item__text">Folk</span>
+          </li>
+          <li class="mdc-list-item" role="option">
+            <span class="mdc-list-item__ripple"></span>
+            <span class="mdc-list-item__text">Rock</span>
+          </li>
+          <li class="mdc-list-item" role="option">
+            <span class="mdc-list-item__ripple"></span>
+            <span class="mdc-list-item__text">Jazz</span>
+          </li>
+          <li class="mdc-list-item" role="option">
+            <span class="mdc-list-item__ripple"></span>
+            <span class="mdc-list-item__text">Soul</span>
+          </li>
+          <li class="mdc-list-item" role="option">
+            <span class="mdc-list-item__ripple"></span>
+            <span class="mdc-list-item__text">Blues</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div id="totalTracks" style="font-family: 'Roboto', sans-serif"></div>
+    <div
+      id="graph"
+      class="aBarchart"
+      style="width: 1000px; height: 200px"
+    ></div>
+    <script>
+      // capture the height/width defined in the div so we only have it defined in one place
+      const chartHeight = parseInt(
+        document.getElementById("graph").style.height
+      );
+      const chartWidth = parseInt(document.getElementById("graph").style.width);
+
+      // TODO we need a ceiling value
+      const ceiling = 5000;
+      // Y scale will fit values from 0-10 within pixels 0 - height
+      const y = d3.scale.linear().domain([0, ceiling]).range([0, chartHeight]);
+      /* initialize the chart without any data */
+      displayStackedChart("graph");
+    </script>
+    <script id="demo" type="text/template">
+
+      <h3 style="font-family: 'Roboto', sans-serif;">Matching Tracks: </h3>
+      <div class="mdc-data-table">
+          <div class="mdc-data-table__table-container">
+            <table class="mdc-data-table__table" aria-label="Dessert calories">
+              <thead>
+                <tr class="mdc-data-table__header-row">
+                  <th class="mdc-data-table__header-cell" role="columnheader" rowspan="2">Key</th>
+                  <th class="mdc-data-table__header-cell  role="columnheader" colspan="3">Value</th>
+                </tr>
+                <tr class="mdc-data-table__header-row">
+                  <th class="mdc-data-table__header-cell" role="columnheader" scope="col">Track</th>
+                  <th class="mdc-data-table__header-cell" role="columnheader" scope="col">Artist</th>
+                  <th class="mdc-data-table__header-cell mdc-data-table__header-cell--numeric" role="columnheader" scope="col">Genre</th>
+
+                </tr>
+              </thead>
+              <tbody class="mdc-data-table__content">
+                  {{#documents}}
+                <tr class="mdc-data-table__row">
+
+                  <td class="mdc-data-table__cell mdc-data-table__cell--numeric">{{id}}</td>
+                  <td class="mdc-data-table__cell">{{value.Name}}</td>
+                  <td class="mdc-data-table__cell">{{value.Composer}}</td>
+                  <td class="mdc-data-table__cell mdc-data-table__cell--numeric">{{value.GenreId}}</td>
+
+                  {{/documents}}
+                </tr>
+              </tbody>
+          </div>
+      </div>
+    </script>
+    <div id="target"></div>
+    <script>
+      let selectedGenre = "1";
+
+      function renderSearchResults(i) {
+        const data = $.getJSON(
+          "search?genreId=" + selectedGenre,
+          function (data) {
+            $("#totalTracks").html(
+              "<h3>Total Matching Tracks: " + data.total + "</h3>"
+            );
+            const template = document.getElementById("demo").innerHTML;
+            document.getElementById("target").innerHTML = Mustache.render(
+              template,
+              data
+            );
+            addData("graph", { id: "v" + i, a: data.total });
+
+            removeData("graph");
+
+            window.setTimeout(() => {
+              renderSearchResults(i + 1);
+            }, 1000);
+          }
+        );
+      }
+
+      const MDCSelect = mdc.select.MDCSelect;
+      const selectedWidget = new MDCSelect(document.querySelector(".mdc-select"));
+      selectedWidget.singleSelection = true;
+      document
+        .getElementsByClassName("mdc-list")[0]
+        .addEventListener("click", () => {
+          selectedGenre = selectedWidget.selectedIndex - 1;
+          renderSearchResults(1);
+        });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+$ttl 38400
+ps-redislabs.org.	IN	SOA	e495b2111a2b. deji\.alaran.gmail.com. (
+			1585261893
+			10800
+			3600
+			604800
+			38400 )
+ps-redislabs.org.	IN	NS	e495b2111a2b.
+re-cluster1.ps-redislabs.org.	5	IN	NS	re-n1
+ns.ps-redislabs.org.	IN	A	172.16.22.20
+re-n1.ps-redislabs.org.	IN	A	172.16.22.21
+re-cluster2.ps-redislabs.org.	IN	NS	re-s1
+re-s1.ps-redislabs.org.	IN	A	172.16.22.41
+re-cluster1.ps-redislabs.org.	5	IN	NS	re-n2
+re-cluster1.ps-redislabs.org.	5	IN	NS	re-n3
+re-cluster2.ps-redislabs.org.	IN	NS	re-s2
+re-cluster2.ps-redislabs.org.	IN	NS	re-s3
+re-n2.ps-redislabs.org.	IN	A	172.16.22.22
+re-n3.ps-redislabs.org.	IN	A	172.16.22.23
+re-s2.ps-redislabs.org.	IN	A	172.16.22.42
+re-s3.ps-redislabs.org.	IN	A	172.16.22.43

@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    meta.helm.sh/release-name: rdi
+    meta.helm.sh/release-namespace: rdi
+    traefik.ingress.kubernetes.io/rewrite-target: /
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+  generation: 1
+  labels:
+    app: collector-source-metrics-exporter
+    app.kubernetes.io/managed-by: Helm
+    product: rdi
+  name: collector-source-metrics-exporter
+  namespace: rdi
+spec:
+  ingressClassName: traefik
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: collector-source-metrics-exporter
+            port:
+              number: 9092
+        path: /metrics/collector-source
+        pathType: Prefix
+status:
+  loadBalancer: {}

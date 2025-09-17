@@ -1,0 +1,11 @@
+{
+  "action": "create_cluster",
+  "cluster": {
+    "name": "$CLUSTER"
+  },
+  "credentials": {
+       "username": "$RE_USER",
+       "password": "$PASSWORD"
+  }
+}
+
