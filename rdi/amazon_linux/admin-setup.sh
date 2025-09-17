@@ -50,7 +50,7 @@ install_system_prerequisites() {
     log "Updating system packages..."
     yum update -y
     
-    # Install essential packages
+    # Install essential packages (excluding curl since curl-minimal is already installed)
     log "Installing essential packages..."
     yum install -y \
         docker \
@@ -62,8 +62,19 @@ install_system_prerequisites() {
         gzip \
         python3 \
         python3-pip \
-        curl \
         unzip
+    
+    # Verify curl is available (Amazon Linux includes curl-minimal by default)
+    if ! command_exists curl; then
+        warn "curl command not available, trying to install curl package..."
+        # Use --allowerasing to resolve curl conflicts if needed
+        yum install -y curl --allowerasing || {
+            error "Failed to install curl package"
+            echo "curl-minimal should provide curl functionality - continuing anyway"
+        }
+    else
+        log "curl is available via curl-minimal package"
+    fi
     
     # Install Docker Compose
     log "Installing Docker Compose..."
